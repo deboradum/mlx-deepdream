@@ -5,32 +5,34 @@ from utils.constants import UPPER_IMAGE_BOUND, LOWER_IMAGE_BOUND
 
 import numpy as np
 import mlx.core as mx
+import mlx.nn as nn
 
 
-def gradient_ascent(config, model, input_tensor, layer_ids_to_use, iteration):
-    # Step 0: Feed forward pass
-    out = model(input_tensor)
+def gradient_ascent(config, model, input_array, layer_ids_to_use, iteration):
 
-    # Step 1: Grab activations/feature maps of interest
-    activations = [out[layer_id_to_use] for layer_id_to_use in layer_ids_to_use]
+    def deepdream_loss(input_array):
+        # Step 0: Feed forward pass
+        out = model.forward(input_array)
 
-    # Step 2: Calculate loss over activations
-    losses = []
-    for layer_activation in activations:
-        # Use torch.norm(torch.flatten(layer_activation), p) with p=2 for L2 loss and p=1 for L1 loss.
-        # But I'll use the MSE as it works really good, I didn't notice any serious change when going to L1/L2.
-        # using torch.zeros_like as if we wanted to make activations as small as possible but we'll do gradient ascent
-        # and that will cause it to actually amplify whatever the network "sees" thus yielding the famous DeepDream look
-        loss_component = torch.nn.MSELoss(reduction="mean")(
-            layer_activation, mx.zeros_like(layer_activation)
-        )
-        losses.append(loss_component)
+        # Step 1: Grab activations/feature maps of interest
+        activations = [out[layer_id_to_use] for layer_id_to_use in layer_ids_to_use]
 
-    loss = mx.mean(mx.stack(losses))
-    loss.backward()
+        # Step 2: Calculate loss over activations
+        losses = []
+        for layer_activation in activations:
+            # Using torch.zeros_like as if we wanted to make activations as small as possible but we'll do gradient ascent
+            # and that will cause it to actually amplify whatever the network "sees" thus yielding the famous DeepDream look
+            loss_component = nn.losses.mse_loss(
+                layer_activation, mx.zeros_like(layer_activation), reduction="mean"
+            )
+            losses.append(loss_component)
 
-    # Step 3: Process image gradients (smoothing + normalization)
-    grad = input_tensor.grad.data
+        return mx.mean(mx.stack(losses))
+
+    lvalue, grads = mx.value_and_grad(deepdream_loss)(input_array)
+    print(grads)
+    print("Done")
+    exit()
 
     # Applies 3 Gaussian kernels and thus "blurs" or smoothens the gradients and gives visually more pleasing results
     # sigma is calculated using an arbitrary heuristic feel free to experiment
@@ -38,7 +40,7 @@ def gradient_ascent(config, model, input_tensor, layer_ids_to_use, iteration):
         "smoothing_coefficient"
     ]
     smooth_grad = utils.CascadeGaussianSmoothing(kernel_size=9, sigma=sigma)(
-        grad
+        grads
     )  # "magic number" 9 just works well
 
     # Normalize the gradients (make them have mean = 0 and std = 1)
@@ -49,12 +51,12 @@ def gradient_ascent(config, model, input_tensor, layer_ids_to_use, iteration):
     smooth_grad = smooth_grad / g_std
 
     # Step 4: Update image using the calculated gradients (gradient ascent step)
-    input_tensor.data += config["lr"] * smooth_grad
+    input_array += config["lr"] * smooth_grad
 
     # Step 5: Clear gradients and clamp the data (otherwise values would explode to +- "infinity")
-    input_tensor.grad.data.zero_()
-    input_tensor.data = mx.max(
-        mx.min(input_tensor, UPPER_IMAGE_BOUND), LOWER_IMAGE_BOUND
+    input_array.grad.data.zero_()
+    input_array.data = mx.max(
+        mx.min(input_array, UPPER_IMAGE_BOUND), LOWER_IMAGE_BOUND
     )
 
 
@@ -65,7 +67,7 @@ def deepdream_img(config, img):
             model.layer_names.index(layer_name)
             for layer_name in config["layers_to_use"]
         ]
-    except Exception as e:
+    except Exception as _:
         print(f'Invalid layer names {[name for name in config["layers_to_use"]]}.')
         print(
             f'Available layers for model {config["model_name"]} are {model.layer_names}.'
@@ -76,23 +78,23 @@ def deepdream_img(config, img):
     for pyramid_level in range(config["pyramid_size"]):
         new_shape = utils.get_new_shape(config, base_shape, pyramid_level)
         img = cv2.resize(img, (new_shape[1], new_shape[0]))
-        input_tensor = utils.mlx_input_adapter(img)
+        input_array = utils.mlx_input_adapter(img)
 
         for iteration in range(config["num_gradient_ascent_iterations"]):
             h_shift, w_shift = np.random.randint(
                 -config["spatial_shift_size"], config["spatial_shift_size"] + 1, 2
             )
-            input_tensor = utils.random_circular_spatial_shift(
-                input_tensor, h_shift, w_shift
+            input_array = utils.random_circular_spatial_shift(
+                input_array, h_shift, w_shift
             )
 
-            gradient_ascent(config, model, input_tensor, layer_ids_to_use, iteration)
+            gradient_ascent(config, model, input_array, layer_ids_to_use, iteration)
 
-            input_tensor = utils.random_circular_spatial_shift(
-                input_tensor, h_shift, w_shift, should_undo=True
+            input_array = utils.random_circular_spatial_shift(
+                input_array, h_shift, w_shift, should_undo=True
             )
 
-        img = utils.mlx_output_adapter(input_tensor)
+        img = utils.mlx_output_adapter(input_array)
 
     return utils.post_process_numpy_img(img)
 
@@ -104,9 +106,11 @@ if __name__ == "__main__":
         "pyramid_size": 4,
         "pyramid_ratio": 1.3,
         "num_gradient_ascent_iterations": 4,
+        "smoothing_coefficient": 0.5,
         "spatial_shift_size": 32,
         "img_path": "figures.jpg",
         "img_width": 1920,
+        "lr": 0.09,
     }
     img = utils.load_image(config["img_path"], target_shape=config["img_width"])
     img = deepdream_img(config, img=img)
