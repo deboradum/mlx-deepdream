@@ -1,4 +1,5 @@
 import cv2
+import os
 
 import utils.utils as utils
 from utils.constants import UPPER_IMAGE_BOUND, LOWER_IMAGE_BOUND
@@ -30,16 +31,13 @@ def gradient_ascent(config, model, input_array, layer_ids_to_use, iteration):
         return mx.mean(mx.stack(losses))
 
     lvalue, grads = mx.value_and_grad(deepdream_loss)(input_array)
-    print(grads)
-    print("Done")
-    exit()
 
     # Applies 3 Gaussian kernels and thus "blurs" or smoothens the gradients and gives visually more pleasing results
     # sigma is calculated using an arbitrary heuristic feel free to experiment
     sigma = ((iteration + 1) / config["num_gradient_ascent_iterations"]) * 2.0 + config[
         "smoothing_coefficient"
     ]
-    smooth_grad = utils.CascadeGaussianSmoothing(kernel_size=9, sigma=sigma)(
+    smooth_grad = utils.CascadeGaussianSmoothing(kernel_size=9, sigma=sigma).forward(
         grads
     )  # "magic number" 9 just works well
 
@@ -54,9 +52,9 @@ def gradient_ascent(config, model, input_array, layer_ids_to_use, iteration):
     input_array += config["lr"] * smooth_grad
 
     # Step 5: Clear gradients and clamp the data (otherwise values would explode to +- "infinity")
-    input_array.grad.data.zero_()
-    input_array.data = mx.max(
-        mx.min(input_array, UPPER_IMAGE_BOUND), LOWER_IMAGE_BOUND
+    # input_array.grad.data.zero_()
+    input_array = mx.maximum(
+        mx.minimum(input_array, UPPER_IMAGE_BOUND), LOWER_IMAGE_BOUND
     )
 
 
@@ -111,6 +109,13 @@ if __name__ == "__main__":
         "img_path": "figures.jpg",
         "img_width": 1920,
         "lr": 0.09,
+        "use_noise": False,
+        "dump_dir": "out",
+        "should_display": False
     }
+    config["input_name"] = os.path.basename(config["img_path"])
+
     img = utils.load_image(config["img_path"], target_shape=config["img_width"])
     img = deepdream_img(config, img=img)
+    dump_path = utils.save_and_maybe_display_image(config, img)
+    print(f'Saved DeepDream static image to: {os.path.relpath(dump_path)}\n')

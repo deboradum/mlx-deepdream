@@ -5,6 +5,7 @@ import numbers
 import numpy as np
 import mlx.nn as nn
 import mlx.core as mx
+import matplotlib.pyplot as plt
 
 from models.Vgg19 import Vgg19
 from mlx.nn.layers.base import Module
@@ -54,6 +55,19 @@ def pre_process_numpy_img(img):
     assert isinstance(img, np.ndarray), f"Expected numpy image got {type(img)}"
 
     img = (img - IMAGENET_MEAN_1) / IMAGENET_STD_1  # normalize image
+    return img
+
+
+def post_process_numpy_img(img):
+    assert isinstance(img, np.ndarray), f"Expected numpy image got {type(img)}"
+    if img.shape[0] == 3:  # if channel-first format move to channel-last (CHW -> HWC)
+        img = np.moveaxis(img, 0, 2)
+
+    mean = IMAGENET_MEAN_1.reshape(1, 1, -1)
+    std = IMAGENET_STD_1.reshape(1, 1, -1)
+    img = (img * std) + mean  # de-normalize
+    img = np.clip(img, 0.0, 1.0)  # make sure it's in the [0, 1] range
+
     return img
 
 
@@ -129,9 +143,8 @@ class CascadeGaussianSmoothing(Module):
 
         # The gaussian kernel is the product of the gaussian function of each dimension.
         kernels = []
-        meshgrids = mx.meshgrid(
-            [mx.arange(size, dtype=mx.float32) for size in kernel_size]
-        )
+        meshgrids = mx.meshgrid(*[mx.arange(size) for size in kernel_size])
+
         for sigma in sigmas:
             kernel = mx.ones_like(meshgrids[0])
             for size_1d, std_1d, grid in zip(kernel_size, sigma, meshgrids):
@@ -148,26 +161,69 @@ class CascadeGaussianSmoothing(Module):
             # Normalize - make sure sum of values in gaussian kernel equals 1.
             kernel = kernel / mx.sum(kernel)
             # Reshape to depthwise convolutional weight
-            kernel = kernel.view(1, 1, *kernel.shape)
-            kernel = kernel.repeat(3, 1, 1, 1)
+            kernel = mx.reshape(kernel, (1, *kernel.shape, 1))
+            kernel = mx.repeat(kernel, 3, 0)
 
             gaussian_kernels.append(kernel)
 
         self.weight1 = gaussian_kernels[0]
         self.weight2 = gaussian_kernels[1]
         self.weight3 = gaussian_kernels[2]
-        self.conv = nn.Conv2d
+        self.conv = mx.conv2d
 
     def forward(self, input):
         input = mx.pad(
-            input, [self.pad, self.pad, self.pad, self.pad], mode="constant"
+            input,
+            [(0, 0), (self.pad, self.pad), (self.pad, self.pad), (0, 0)],
+            mode="edge",
         )  # mode=reflect
 
         # Apply Gaussian kernels depthwise over the input (hence groups equals the number of input channels)
         # shape = (1, 3, H, W) -> (1, 3, H, W)
-        num_in_channels = input.shape[1]
-        grad1 = self.conv(input, weight=self.weight1, groups=num_in_channels)
-        grad2 = self.conv(input, weight=self.weight2, groups=num_in_channels)
-        grad3 = self.conv(input, weight=self.weight3, groups=num_in_channels)
+        num_in_channels = input.shape[3]
+        grad1 = self.conv(input, self.weight1, groups=num_in_channels)
+        grad2 = self.conv(input, self.weight2, groups=num_in_channels)
+        grad3 = self.conv(input, self.weight3, groups=num_in_channels)
 
         return (grad1 + grad2 + grad3) / 3
+
+
+def build_image_name(config):
+    input_name = (
+        "rand_noise" if config["use_noise"] else config["input_name"].rsplit(".", 1)[0]
+    )
+    layers = "_".join(config["layers_to_use"])
+    # Looks awful but makes the creation process transparent for other creators
+    img_name = f'{input_name}_width_{config["img_width"]}_model_{config["model_name"]}_{layers}_pyrsize_{config["pyramid_size"]}_pyrratio_{config["pyramid_ratio"]}_iter_{config["num_gradient_ascent_iterations"]}_lr_{config["lr"]}_shift_{config["spatial_shift_size"]}_smooth_{config["smoothing_coefficient"]}.jpg'
+    return img_name
+
+
+def save_and_maybe_display_image(config, dump_img, name_modifier=None):
+    assert isinstance(
+        dump_img, np.ndarray
+    ), f"Expected numpy array got {type(dump_img)}."
+
+    # step1: figure out the dump dir location
+    dump_dir = config["dump_dir"]
+    os.makedirs(dump_dir, exist_ok=True)
+
+    # step2: define the output image name
+    if name_modifier is not None:
+        dump_img_name = str(name_modifier).zfill(6) + ".jpg"
+    else:
+        dump_img_name = build_image_name(config)
+
+    if dump_img.dtype != np.uint8:
+        dump_img = (dump_img * 255).astype(np.uint8)
+
+    # step3: write image to the file system
+    # ::-1 because opencv expects BGR (and not RGB) format...
+    dump_path = os.path.join(dump_dir, dump_img_name)
+    cv2.imwrite(dump_path, dump_img[:, :, ::-1])
+
+    # step4: potentially display/plot the image
+    if config["should_display"]:
+        plt.imshow(dump_img)
+        plt.show()
+
+    return dump_path

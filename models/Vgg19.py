@@ -2,7 +2,6 @@ from collections import namedtuple
 from mlx.nn.layers.base import Module
 
 import mlx.nn as nn
-import mlx.core as mx
 import mlx.models as mlx_models
 
 
