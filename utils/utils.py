@@ -105,11 +105,7 @@ def get_new_shape(config, base_shape, pyramid_level):
 
 
 def mlx_input_adapter(img):
-    # shape = (1, 3, H, W)
-    # CHANGED TO
-    # shape = (1, H, W, 3)
     array = mx.expand_dims(mx.array(img), 0)
-    # array.requires_grad = True # TODO
     return array
 
 
@@ -123,13 +119,13 @@ def random_circular_spatial_shift(array, h_shift, w_shift, should_undo=False):
     if should_undo:
         h_shift = -h_shift
         w_shift = -w_shift
-    # with torch.no_grad():
+
     rolled = mx.array(
         np.roll(
             np.array(array), shift=(h_shift, w_shift), axis=(1, 2)
         )  # there's no MLX roll?
     )
-    # rolled.requires_grad = True
+
     return rolled
 
 
@@ -242,3 +238,31 @@ def save_and_maybe_display_image(config, dump_img, name_modifier=None):
         plt.show()
 
     return dump_path
+
+
+def linear_blend(img1, img2, alpha=0.5):
+    return img1 + alpha * (img2 - img1)
+
+
+def print_deep_dream_video_header(config):
+    print(
+        f'Creating a DeepDream video from {config["input_name"]}, via {config["model_name"]} model.'
+    )
+    # print(f'Using pretrained weights = {config["pretrained_weights"]}')
+    print(f'Using model layers = {config["layers_to_use"]}')
+    print(f'Using lending coefficient = {config["blend"]}.')
+    print(f'Video output width = {config["img_width"]}')
+    print(f'fps = {config["fps"]}')
+    print("*" * 50, "\n")
+
+
+def print_ouroboros_video_header(config):
+    print(
+        f'Creating a {config["ouroboros_length"]}-frame Ouroboros video from {config["input_name"]}, via {config["model_name"]} model.'
+    )
+    print(f'Using {config["frame_transform"]} for the frame transform')
+    # print(f'Using pretrained weights = {config["pretrained_weights"]}')
+    print(f'Using model layers = {config["layers_to_use"]}')
+    print(f'Video output width = {config["img_width"]}')
+    print(f'fps = {config["fps"]}')
+    print("*" * 50, "\n")
