@@ -3,13 +3,28 @@ import cv2
 import numbers
 
 import numpy as np
-import mlx.nn as nn
 import mlx.core as mx
 import matplotlib.pyplot as plt
 
 from models.Vgg19 import Vgg19
 from mlx.nn.layers.base import Module
-from utils.constants import IMAGENET_MEAN_1, IMAGENET_STD_1
+from utils.constants import (
+    IMAGENET_MEAN_1,
+    IMAGENET_STD_1,
+    SupportedModels,
+    INPUT_DATA_PATH,
+)
+
+
+def parse_input_file(input):
+    # Handle abs/rel paths
+    if os.path.exists(input):
+        return input
+    # If passed only a name and it doesn't exist in the current working dir assume it's in input data dir
+    elif os.path.exists(os.path.join(INPUT_DATA_PATH, input)):
+        return os.path.join(INPUT_DATA_PATH, input)
+    else:
+        raise Exception(f"Input path {input} is not valid.")
 
 
 def load_image(img_path, target_shape=None):
@@ -41,7 +56,7 @@ def load_image(img_path, target_shape=None):
 
 
 def get_model(model_type):
-    if model_type == "vgg19":
+    if model_type == SupportedModels.VGG19.name:
         model = Vgg19()
     # elif model_type == "alexnet":
     #     model = mlx_models.vision.AlexNet(load_weights=True)
