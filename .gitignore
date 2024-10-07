@@ -1,1 +1,6 @@
 __pycache__
+
+*.jpg
+*.mp4
+
+!figures.jpg
