@@ -1,22 +1,17 @@
-import argparse
 import cv2
 import shutil
 import time
 import os
 
+from parser import parse_args
 from utils.constants import (
     UPPER_IMAGE_BOUND,
     LOWER_IMAGE_BOUND,
     SUPPORTED_VIDEO_FORMATS,
-    SUPPORTED_IMAGE_FORMATS,
     BINARIES_PATH,
-    DATA_DIR_PATH,
-    INPUT_DATA_PATH,
     OUT_IMAGES_PATH,
     OUT_VIDEOS_PATH,
     OUT_GIF_PATH,
-    SupportedModels,
-    TRANSFORMS,
 )
 
 import numpy as np
@@ -100,12 +95,10 @@ def deepdream_image(config, img):
             img = np.random.uniform(low=0.0, high=1.0, size=shape).astype(np.float32)
     img = utils.pre_process_numpy_img(img)
     base_shape = img.shape[:-1]
-
     for pyramid_level in range(config["pyramid_size"]):
         new_shape = utils.get_new_shape(config, base_shape, pyramid_level)
         img = cv2.resize(img, (new_shape[1], new_shape[0]))
         input_array = utils.mlx_input_adapter(img)
-
         for iteration in range(config["num_gradient_ascent_iterations"]):
             h_shift, w_shift = np.random.randint(
                 -config["spatial_shift_size"], config["spatial_shift_size"] + 1, 2
@@ -115,7 +108,6 @@ def deepdream_image(config, img):
             )
 
             gradient_ascent(config, model, input_array, layer_ids_to_use, iteration)
-
             input_array = utils.random_circular_spatial_shift(
                 input_array, h_shift, w_shift, should_undo=True
             )
@@ -169,119 +161,7 @@ def deep_dream_video(config):
     print(f"Deleted tmp frame dump directory {tmp_input_dir}.")
 
 
-if __name__ == "__main__":
-    # Only a small subset is exposed by design to avoid cluttering
-    parser = argparse.ArgumentParser()
-
-    # Common params
-    parser.add_argument(
-        "--input",
-        type=str,
-        help="Input IMAGE or VIDEO name that will be used for dreaming",
-        default="figures.jpg",
-    )
-    parser.add_argument(
-        "--img_width", type=int, help="Resize input image to this width", default=1920
-    )
-    parser.add_argument(
-        "--layers_to_use",
-        type=str,
-        nargs="+",
-        help="Layer whose activations we should maximize while dreaming",
-        default=["relu4_3"],
-    )
-    parser.add_argument(
-        "--model_name",
-        choices=[m.name for m in SupportedModels],
-        help="Neural network (model) to use for dreaming",
-        default=SupportedModels.VGG19.name,
-    )
-    # parser.add_argument(
-    #     "--pretrained_weights",
-    #     choices=[pw.name for pw in SupportedPretrainedWeights],
-    #     help="Pretrained weights to use for the above model",
-    #     default=SupportedPretrainedWeights.IMAGENET.name,
-    # )
-
-    # Main params for experimentation (especially pyramid_size and pyramid_ratio)
-    parser.add_argument(
-        "--pyramid_size",
-        type=int,
-        help="Number of images in an image pyramid",
-        default=4,
-    )
-    parser.add_argument(
-        "--pyramid_ratio",
-        type=float,
-        help="Ratio of image sizes in the pyramid",
-        default=1.3,
-    )
-    parser.add_argument(
-        "--num_gradient_ascent_iterations",
-        type=int,
-        help="Number of gradient ascent iterations",
-        default=4,
-    )
-    parser.add_argument(
-        "--lr",
-        type=float,
-        help="Learning rate i.e. step size in gradient ascent",
-        default=0.09,
-    )
-
-    # deep_dream_video_ouroboros specific arguments (ignore for other 2 functions)
-    parser.add_argument(
-        "--create_ouroboros",
-        action="store_true",
-        help="Create Ouroboros video (default False)",
-    )
-    parser.add_argument(
-        "--ouroboros_length",
-        type=int,
-        help="Number of video frames in ouroboros video",
-        default=30,
-    )
-    parser.add_argument(
-        "--fps", type=int, help="Number of frames per second", default=30
-    )
-    parser.add_argument(
-        "--frame_transform",
-        choices=[t.name for t in TRANSFORMS],
-        help="Transform used to transform the output frame and feed it back to the network input",
-        default=TRANSFORMS.ZOOM_ROTATE.name,
-    )
-
-    # deep_dream_video specific arguments (ignore for other 2 functions)
-    parser.add_argument(
-        "--blend", type=float, help="Blend coefficient for video creation", default=0.99
-    )
-
-    # You usually won't need to change these as often
-    parser.add_argument(
-        "--should_display",
-        action="store_true",
-        help="Display intermediate dreaming results (default False)",
-    )
-    parser.add_argument(
-        "--spatial_shift_size",
-        type=int,
-        help="Number of pixels to randomly shift image before grad ascent",
-        default=32,
-    )
-    parser.add_argument(
-        "--smoothing_coefficient",
-        type=float,
-        help="Directly controls standard deviation for gradient smoothing",
-        default=0.5,
-    )
-    parser.add_argument(
-        "--use_noise",
-        action="store_true",
-        help="Use noise as a starting point instead of input image (default False)",
-    )
-    args = parser.parse_args()
-
-    # Wrapping configuration into a dictionary
+def get_config(args):
     config = dict()
     for arg in vars(args):
         config[arg] = getattr(args, arg)
@@ -295,6 +175,13 @@ if __name__ == "__main__":
     )
     config["input_name"] = os.path.basename(config["input"])
 
+    return config
+
+
+if __name__ == "__main__":
+    args = parse_args()
+    config = get_config(args)
+
     # Create Ouroboros video (feeding neural network's output to it's input)
     if config["create_ouroboros"]:
         deep_dream_video_ouroboros(config)
@@ -306,7 +193,6 @@ if __name__ == "__main__":
         ]
     ):  # only support mp4 atm
         deep_dream_video(config)
-
     else:  # Create a static DeepDream image
         print("Dreaming started!")
         img = deepdream_image(
