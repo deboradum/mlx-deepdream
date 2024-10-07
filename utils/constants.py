@@ -22,6 +22,8 @@ class TRANSFORMS(enum.Enum):
 
 class SupportedModels(enum.Enum):
     VGG19 = 0
+    ALEXNET = 1
+    RESNET50 = 2
 
 
 SUPPORTED_VIDEO_FORMATS = [".mp4"]

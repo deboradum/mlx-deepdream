@@ -7,6 +7,8 @@ import mlx.core as mx
 import matplotlib.pyplot as plt
 
 from models.Vgg19 import Vgg19
+from models.Alexnet import Alexnet
+from models.Resnet import Resnet50
 from mlx.nn.layers.base import Module
 from utils.constants import (
     IMAGENET_MEAN_1,
@@ -58,8 +60,10 @@ def load_image(img_path, target_shape=None):
 def get_model(model_type):
     if model_type == SupportedModels.VGG19.name:
         model = Vgg19()
-    # elif model_type == "alexnet":
-    #     model = mlx_models.vision.AlexNet(load_weights=True)
+    elif model_type == SupportedModels.ALEXNET.name:
+        model = Alexnet()
+    elif model_type == SupportedModels.RESNET50.name:
+        model = Resnet50()
     else:
         raise Exception(f"Model '{model_type}' not supported")
 
@@ -120,10 +124,12 @@ def random_circular_spatial_shift(array, h_shift, w_shift, should_undo=False):
         h_shift = -h_shift
         w_shift = -w_shift
 
+    # https://github.com/ml-explore/mlx/pull/1455
+    # mlx roll PR should be done in a couple days.
     rolled = mx.array(
         np.roll(
             np.array(array), shift=(h_shift, w_shift), axis=(1, 2)
-        )  # there's no MLX roll?
+        )
     )
 
     return rolled
