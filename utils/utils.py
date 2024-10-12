@@ -124,12 +124,8 @@ def random_circular_spatial_shift(array, h_shift, w_shift, should_undo=False):
         h_shift = -h_shift
         w_shift = -w_shift
 
-    # https://github.com/ml-explore/mlx/pull/1455
-    # mlx roll PR should be done in a couple days.
-    rolled = mx.array(
-        np.roll(
-            np.array(array), shift=(h_shift, w_shift), axis=(1, 2)
-        )
+    rolled = mx.roll(
+        array, (h_shift, w_shift), (1, 2)
     )
 
     return rolled

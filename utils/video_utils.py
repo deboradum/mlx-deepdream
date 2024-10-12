@@ -6,7 +6,7 @@ import re
 import cv2 as cv
 import imageio
 
-from constants import OUT_VIDEOS_PATH
+from utils.constants import OUT_VIDEOS_PATH
 from .utils import build_image_name
 
 
