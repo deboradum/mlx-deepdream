@@ -113,6 +113,7 @@ def mlx_input_adapter(img):
     return array
 
 
+# TODO: Current bottleneck, find a way to speed this up.
 def mlx_output_adapter(array):
     # Push to CPU, detach from the computational graph, convert from (1, H, W, 3) into (H, W, 3)
     array = np.array(array[0])

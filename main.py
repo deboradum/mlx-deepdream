@@ -29,6 +29,8 @@ os.makedirs(OUT_GIF_PATH, exist_ok=True)
 
 
 def gradient_ascent(config, model, input_array, layer_ids_to_use, iteration):
+    start1 = time.perf_counter()
+
     def deepdream_loss(input_array):
         # Step 0: Feed forward pass
         out = model.forward(input_array)
@@ -49,6 +51,8 @@ def gradient_ascent(config, model, input_array, layer_ids_to_use, iteration):
         return mx.mean(mx.stack(losses))
 
     lvalue, grads = mx.value_and_grad(deepdream_loss)(input_array)
+    stop1 = time.perf_counter()
+    print("\tGetting grads took", round(stop1 - start1, 4), "seconds")
 
     # Applies 3 Gaussian kernels and thus "blurs" or smoothens the gradients and gives visually more pleasing results
     # sigma is calculated using an arbitrary heuristic feel free to experiment
@@ -74,6 +78,7 @@ def gradient_ascent(config, model, input_array, layer_ids_to_use, iteration):
 
 
 def deepdream_image(config, img):
+    start1 = time.perf_counter()
     model = utils.get_model(config["model_name"])
     try:
         layer_ids_to_use = [
@@ -96,6 +101,7 @@ def deepdream_image(config, img):
     img = utils.pre_process_numpy_img(img)
     base_shape = img.shape[:-1]
     for pyramid_level in range(config["pyramid_size"]):
+        startp = time.perf_counter()
         new_shape = utils.get_new_shape(config, base_shape, pyramid_level)
         img = cv2.resize(img, (new_shape[1], new_shape[0]))
         input_array = utils.mlx_input_adapter(img)
@@ -108,12 +114,16 @@ def deepdream_image(config, img):
             )
 
             gradient_ascent(config, model, input_array, layer_ids_to_use, iteration)
+
             input_array = utils.random_circular_spatial_shift(
                 input_array, h_shift, w_shift, should_undo=True
             )
 
         img = utils.mlx_output_adapter(input_array)
-
+        stopp = time.perf_counter()
+        print("pyramid level processing took", round(stopp - startp, 2), "seconds")
+    stop1 = time.perf_counter()
+    print("result took", round(stop1 - start1, 4), "seconds")
     return utils.post_process_numpy_img(img)
 
 
