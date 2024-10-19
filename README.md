@@ -4,6 +4,13 @@ For technical details of how DeepDream works, see the [wikipedia page](https://e
 
 This port supports most of the functionality offered by the pytorch implementation such as video-mode, ouroboros-mode and more. See below for a list of accepted arguments.
 
+<div style="display: flex; justify-content: space-between;">
+    <img src="mlx-sd.png" width="240" height="240" style="margin-right: 10px;"/>
+    <img src="mlx-sd-vgg19-22.jpg" width="240" height="240" style="margin-right: 10px;"/>
+    <img src="mlx-sd-vgg19-33.jpg" width="240" height="240" style="margin-right: 10px;"/>
+    <img src="mlx-sd-vgg19-43.jpg" width="240" height="240" />
+</div>
+
 ```
 usage: main.py [-h] [--input INPUT] [--img_width IMG_WIDTH] [--layers_to_use LAYERS_TO_USE [LAYERS_TO_USE ...]] [--model_name {VGG19,ALEXNET,RESNET50}] [--pyramid_size PYRAMID_SIZE]
                [--pyramid_ratio PYRAMID_RATIO] [--num_gradient_ascent_iterations NUM_GRADIENT_ASCENT_ITERATIONS] [--lr LR] [--create_ouroboros] [--ouroboros_length OUROBOROS_LENGTH]
