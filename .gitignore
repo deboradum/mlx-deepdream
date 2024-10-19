@@ -4,4 +4,6 @@ __pycache__
 *.mp4
 
 !figures.jpg
-!mlx-sd-dreamed.jpg
+!mlx-sd-vgg19-22.jpg
+!mlx-sd-vgg19-33.jpg
+!mlx-sd-vgg19-43.jpg
