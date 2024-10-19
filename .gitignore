@@ -4,3 +4,4 @@ __pycache__
 *.mp4
 
 !figures.jpg
+!mlx-sd-dreamed.jpg
